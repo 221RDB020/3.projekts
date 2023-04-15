@@ -153,73 +153,73 @@ public class Main {
     System.out.println("221RDB136 Dainis Kudrjavcevs 1.grupa");
     System.out.println("221RDB353 Pāvels Kudrjavcevs 2.grupa");
   }
-  
-  public static class DeflateAlgorithm {
-    private LZ77 lz77;
-    private HuffmanCoding huffman;
+}
 
-    public DeflateAlgorithm() {
-        this.lz77 = new LZ77();
-        this.huffman = new HuffmanCoding();
-    }
+class DeflateAlgorithm {
+  private LZ77 lz77;
+  private HuffmanCoding huffman;
 
-    public byte[] compress(byte[] data) {
-        byte[] compressedData = lz77.compress(data);
-        compressedData = huffman.encode(compressedData);
-        return compressedData;
-    }
-
-    public byte[] decompress(byte[] compressedData) {
-        byte[] decompressedData = huffman.decode(compressedData);
-        decompressedData = lz77.decompress(compressedData);
-        return decompressedData;
-    }
+  public DeflateAlgorithm() {
+      this.lz77 = new LZ77();
+      this.huffman = new HuffmanCoding();
   }
 
-  public static class LZ77 {
-    private int slideWindow;
-    private int searchBuffer;
-    private int outputBuffer;
-
-    public LZ77() {
-        //TODO: Initialize slide window, search buffer, and output buffer
-    }
-
-    public byte[] compress(byte[] data) {
-        //TODO: Compress data using LZ77 algorithm
-        return null; //compressedData;
-    }
-
-    public byte[] decompress(byte[] compressedData) {
-        //TODO: Decompress compressedData using LZ77 algorithm
-        return null; //decompressedData;
-    }
+  public byte[] compress(byte[] data) {
+      byte[] compressedData = lz77.compress(data);
+      compressedData = huffman.encode(compressedData);
+      return compressedData;
   }
 
-  public static class HuffmanCoding {
-    private Map<Byte, Integer> frequencyTable;
-    private Map<Byte, String> codeTable;
+  public byte[] decompress(byte[] compressedData) {
+      byte[] decompressedData = huffman.decode(compressedData);
+      decompressedData = lz77.decompress(compressedData);
+      return decompressedData;
+  }
+}
 
-    public HuffmanCoding() {
-        //TODO: Initialize frequency table and code table
-    }
+class LZ77 {
+  private int slideWindow;
+  private int searchBuffer;
+  private int outputBuffer;
 
-    public void buildFrequencyTable(byte[] data) {
-        //TODO: Build frequency table for data
-    }
+  public LZ77() {
+      //TODO: Initialize slide window, search buffer, and output buffer
+  }
 
-    public void buildCodeTable() {
-        //TODO: Build code table using frequency table
-    }
+  public byte[] compress(byte[] data) {
+      //TODO: Compress data using LZ77 algorithm
+      return null; //compressedData;
+  }
 
-    public byte[] encode(byte[] data) {
-        //TODO: Encode data using Huffman coding
-        return null; //encodedData;
-    }
+  public byte[] decompress(byte[] compressedData) {
+      //TODO: Decompress compressedData using LZ77 algorithm
+      return null; //decompressedData;
+  }
+}
 
-    public byte[] decode(byte[] encodedData) {
-        //TODO: Decode encodedData using Huffman coding
-        return null; //decodedData;
-    }
+class HuffmanCoding {
+  private Map<Byte, Integer> frequencyTable;
+  private Map<Byte, String> codeTable;
+
+  public HuffmanCoding() {
+      //TODO: Initialize frequency table and code table
+  }
+
+  public void buildFrequencyTable(byte[] data) {
+      //TODO: Build frequency table for data
+  }
+
+  public void buildCodeTable() {
+      //TODO: Build code table using frequency table
+  }
+
+  public byte[] encode(byte[] data) {
+      //TODO: Encode data using Huffman coding
+      return null; //encodedData;
+  }
+
+  public byte[] decode(byte[] encodedData) {
+      //TODO: Decode encodedData using Huffman coding
+      return null; //decodedData;
   }
 }
