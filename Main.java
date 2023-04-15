@@ -171,8 +171,8 @@ public class Main {
     }
 
     public byte[] decompress(byte[] compressedData) {
-        compressedData = huffman.decode(compressedData);
-        byte[] decompressedData = lz77.decompress(compressedData);
+        byte[] decompressedData = huffman.decode(compressedData);
+        decompressedData = lz77.decompress(compressedData);
         return decompressedData;
     }
   }
