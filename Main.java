@@ -18,14 +18,14 @@ public class Main {
         sourceFile = sc.next();
         System.out.print("archive name: ");
         resultFile = sc.next();
-        new Compressor().comp(sourceFile, resultFile);
+        comp(sourceFile, resultFile);
         break;
       case "decomp":
         System.out.print("archive name: ");
         sourceFile = sc.next();
         System.out.print("file name: ");
         resultFile = sc.next();
-        new Compressor().decomp(sourceFile, resultFile);
+        decomp(sourceFile, resultFile);
         break;
       case "size":
         System.out.print("file name: ");
@@ -48,6 +48,56 @@ public class Main {
     }
 
     sc.close();
+  }
+
+  public static void comp(String sourceFile, String resultFile) {
+    try {
+      FileInputStream in = new FileInputStream(sourceFile);
+      FileOutputStream out = new FileOutputStream(resultFile);
+
+      byte[] inputBuffer = new byte[1024];
+      int bytesRead;
+
+      ByteArrayOutputStream compressed = new ByteArrayOutputStream();
+
+      while ((bytesRead = in.read(inputBuffer)) != -1) {
+          byte[] encoded = new DeflateAlgorithm().compress(inputBuffer);
+          compressed.write(encoded);
+      }
+
+      byte[] compressedBytes = compressed.toByteArray();
+
+      out.write(compressedBytes);
+      in.close();
+      out.close();
+    } catch (IOException e) {
+        System.out.println(e.getMessage());
+    }
+  }
+
+  public static void decomp(String sourceFile, String resultFile) {
+    try {
+      FileInputStream in = new FileInputStream(sourceFile);
+      FileOutputStream out = new FileOutputStream(resultFile);
+
+      byte[] inputBuffer = new byte[1024];
+      int bytesRead;
+
+      ByteArrayOutputStream decompressed = new ByteArrayOutputStream();
+
+      while ((bytesRead = in.read(inputBuffer)) != -1) {
+          byte[] encoded = new DeflateAlgorithm().decompress(inputBuffer);
+          decompressed.write(encoded);
+      }
+
+      byte[] decompressedBytes = decompressed.toByteArray();
+
+      out.write(decompressedBytes);
+      in.close();
+      out.close();
+    } catch (IOException e) {
+        System.out.println(e.getMessage());
+    }
   }
 
   public static void size(String sourceFile) {
@@ -105,91 +155,72 @@ public class Main {
     System.out.println("221RDB353 Pāvels Kudrjavcevs 2.grupa");
   }
   
-  static class Compressor {
-    public void comp(String sourceFile, String resultFile) {
-      try {
-          FileInputStream in = new FileInputStream(sourceFile);
-          FileOutputStream out = new FileOutputStream(resultFile);
+  public static class DeflateAlgorithm {
+    private LZ77 lz77;
+    private HuffmanCoding huffman;
 
-          byte[] inputBuffer = new byte[1024];
-          byte[] encodedBuffer = new byte[1024];
-
-          int bytesRead;
-          
-          ByteArrayOutputStream compressed = new ByteArrayOutputStream();
-
-          while ((bytesRead = in.read(inputBuffer)) != -1) {
-              byte[] encoded = new LZ77().encode(inputBuffer);
-              compressed.write(encoded);
-          }
-
-          HuffmanCoding huffman = new HuffmanCoding();
-
-          byte[] compressedBytes = compressed.toByteArray();
-          byte[] encodedHuffman = huffman.encode(compressedBytes);
-          
-          out.write(encodedHuffman);
-          in.close();
-          out.close();
-      } catch (IOException e) {
-          System.out.println(e.getMessage());
-      }
+    public DeflateAlgorithm() {
+        this.lz77 = new LZ77();
+        this.huffman = new HuffmanCoding();
     }
 
-    public void decomp(String sourceFile, String resultFile) {
-      //TODO: implement decomp algorythm
+    public byte[] compress(byte[] data) {
+        byte[] compressedData = lz77.compress(data);
+        compressedData = huffman.encode(compressedData);
+        return compressedData;
+    }
+
+    public byte[] decompress(byte[] compressedData) {
+        compressedData = huffman.decode(compressedData);
+        byte[] decompressedData = lz77.decompress(compressedData);
+        return decompressedData;
     }
   }
 
-  static class LZ77 {
+  public static class LZ77 {
+    private int slideWindow;
+    private int searchBuffer;
+    private int outputBuffer;
+
+    public LZ77() {
+        //TODO: Initialize slide window, search buffer, and output buffer
+    }
+
+    public byte[] compress(byte[] data) {
+        //TODO: Compress data using LZ77 algorithm
+        return null; //compressedData;
+    }
+
+    public byte[] decompress(byte[] compressedData) {
+        //TODO: Decompress compressedData using LZ77 algorithm
+        return null; //decompressedData;
+    }
+  }
+
+  public static class HuffmanCoding {
+    private Map<Byte, Integer> frequencyTable;
+    private Map<Byte, String> codeTable;
+
+    public HuffmanCoding() {
+        //TODO: Initialize frequency table and code table
+    }
+
+    public void buildFrequencyTable(byte[] data) {
+        //TODO: Build frequency table for data
+    }
+
+    public void buildCodeTable() {
+        //TODO: Build code table using frequency table
+    }
+
     public byte[] encode(byte[] data) {
-      return null;
+        //TODO: Encode data using Huffman coding
+        return null; //encodedData;
     }
 
-    public byte[] decode(byte[] data) {
-      return null;
+    public byte[] decode(byte[] encodedData) {
+        //TODO: Decode encodedData using Huffman coding
+        return null; //decodedData;
     }
-  }
-  
-  static class LZ77Token {
-    public LZ77Token(int matchOffset, int matchLength, byte b) {
-    }
-
-    public int getOffset() {
-      return 0;
-    }
-
-    public Byte getLiteral() {
-      return null;
-    }
-
-    public int getLength() {
-      return 0;
-    }
-  }
-
-  static class SuffixArray {
-    public static int byteArrayToInt(byte[] copyOfRange) {
-      return 0;
-    }
-
-    public static Collection<? extends Byte> intToByteArray(int offset) {
-      return null;
-    }
-  }
-
-  static class HuffmanCoding {
-    public byte[] encode(byte[] compressedBytes) {
-      return null;
-    }
-
-    public byte[] decode(byte[] compressedBytes) {
-      return null;
-    }
-    //TODO: implement HuffmanCoding algorythm
-  }
-
-  static class HuffmanTree {
-    //TODO: implement HuffmanTree algorythm
   }
 }
