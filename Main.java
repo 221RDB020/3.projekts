@@ -86,8 +86,8 @@ public class Main {
       ByteArrayOutputStream decompressed = new ByteArrayOutputStream();
 
       while ((bytesRead = in.read(inputBuffer)) != -1) {
-          byte[] encoded = new DeflateAlgorithm().decompress(inputBuffer);
-          decompressed.write(encoded);
+          byte[] decoded = new DeflateAlgorithm().decompress(inputBuffer);
+          decompressed.write(decoded);
       }
 
       byte[] decompressedBytes = decompressed.toByteArray();
