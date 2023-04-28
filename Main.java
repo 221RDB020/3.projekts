@@ -1,6 +1,5 @@
 import java.io.*;
 import java.util.*;
-import java.util.PriorityQueue;
 
 public class Main {
   public static void main(String[] args) {
@@ -373,6 +372,8 @@ class HuffmanCoding {
 
   public byte[] decode(byte[] encodedData) {
     StringBuilder binaryStr = new StringBuilder();
+    PriorityQueue<HuffmanNode> pq = new PriorityQueue<>();
+
     for (byte b : encodedData) {
       String byteStr = Integer.toBinaryString((b & 0xFF) + 0x100).substring(1);
       binaryStr.append(byteStr);
