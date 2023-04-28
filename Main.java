@@ -165,13 +165,13 @@ class DeflateAlgorithm {
 
   public byte[] compress(byte[] data) {
     byte[] compressedData = lz77.compress(data);
-    // compressedData = huffman.encode(compressedData);
+    compressedData = huffman.encode(compressedData);
     return compressedData;
   }
 
   public byte[] decompress(byte[] compressedData) {
-    // byte[] decompressedData = huffman.decode(compressedData);
-    byte[] decompressedData = lz77.decompress(compressedData);
+    byte[] decompressedData = huffman.decode(compressedData);
+    decompressedData = lz77.decompress(compressedData);
     return decompressedData;
   }
 }
