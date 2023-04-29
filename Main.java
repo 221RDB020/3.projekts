@@ -67,6 +67,7 @@ public class Main {
       ByteArrayOutputStream compressed = new ByteArrayOutputStream();
 
       while ((bytesRead = in.read(inputBuffer)) != -1) {
+        System.out.println("ir");
         byte[] encoded = new DeflateAlgorithm().compress(Arrays.copyOf(inputBuffer, bytesRead));
         compressed.write(encoded);
       }
@@ -162,130 +163,287 @@ public class Main {
 
 class DeflateAlgorithm {
   private LZ77 lz77;
+  private HuffmanCoding huffman;
 
   public DeflateAlgorithm() {
     this.lz77 = new LZ77();
+    this.huffman = new HuffmanCoding();
   }
 
   public byte[] compress(byte[] data) {
     byte[] compressedData = lz77.compress(data);
+    // compressedData = huffman.encode(compressedData);
     return compressedData;
   }
 
   public byte[] decompress(byte[] compressedData) {
-    byte[] decompressedData = null;
-    try {
-      decompressedData = lz77.decompress(compressedData);
-    } catch (IOException e) {
-      System.out.println(e);
-    }
+    // byte[] decompressedData = huffman.decode(compressedData);
+    byte[] decompressedData = lz77.decompress(compressedData);
     return decompressedData;
   }
 }
 
 class LZ77 {
-  public static final int DEFAULT_BUFF_SIZE = 1024;
-  protected int mBufferSize;
-  protected StringBuffer mSearchBuffer;
+  private int slideWindow;
+  private int searchBuffer;
+  private int outputBuffer;
 
   public LZ77() {
-    this(DEFAULT_BUFF_SIZE);
-  }
-
-  public LZ77(int buffSize) {
-    mBufferSize = buffSize;
-    mSearchBuffer = new StringBuffer(mBufferSize);
-  }
-
-  private void trimSearchBuffer() {
-    if (mSearchBuffer.length() > mBufferSize) {
-      mSearchBuffer = mSearchBuffer.delete(0, mSearchBuffer.length() - mBufferSize);
-    }
+    this.slideWindow = 32768;
+    this.searchBuffer = 32768;
+    this.outputBuffer = 32768;
   }
 
   public byte[] compress(byte[] data) {
-    StringBuffer compressedData = new StringBuffer();
-    int nextChar;
-    String currentMatch = "";
-    int matchIndex = 0, tempIndex = 0;
-    for (int i = 0; i < data.length; i++) {
-      nextChar = data[i] & 0xFF;
-      tempIndex = mSearchBuffer.indexOf(currentMatch + (char) nextChar);
-      if (tempIndex != -1) {
-        currentMatch += (char) nextChar;
-        matchIndex = tempIndex;
-      } else {
-        String codedString = "\0" + matchIndex + "\0" + currentMatch.length() + "\0" + (char) nextChar;
-        String concat = currentMatch + (char) nextChar;
-        if (codedString.length() <= concat.length()) {
-          compressedData.append(codedString);
-          mSearchBuffer.append(concat);
-          currentMatch = "";
-          matchIndex = 0;
-        } else {
-          currentMatch = concat;
-          matchIndex = -1;
-          while (currentMatch.length() > 1 && matchIndex == -1) {
-            compressedData.append(currentMatch.charAt(0));
-            mSearchBuffer.append(currentMatch.charAt(0));
-            currentMatch = currentMatch.substring(1, currentMatch.length());
-            matchIndex = mSearchBuffer.indexOf(currentMatch);
-          }
+    List<Triplet> triplets = new ArrayList<>();
+    int index = 0;
+    int length = data.length - 1;
+
+    while (index < length) {
+      int matchIndex = -1;
+      int matchLength = -1;
+
+      for (int j = Math.max(0, index - searchBuffer); j < index; j++) {
+        int len = 0;
+        while (index + len < length && data[j + len] == data[index + len] && len < outputBuffer) {
+          len++;
         }
-        trimSearchBuffer();
+        if (len > matchLength) {
+          matchIndex = j;
+          matchLength = len;
+        }
       }
-    }
-    if (matchIndex != -1) {
-      String codedString = "\0" + matchIndex + "\0" + currentMatch.length() + "\0";
-      if (codedString.length() <= currentMatch.length()) {
-        compressedData.append(codedString);
+      if (matchLength > 0) {
+        triplets.add(new Triplet(index - matchIndex, matchLength, data[index + matchLength]));
+        index += matchLength + 1;
       } else {
-        compressedData.append(currentMatch);
+        triplets.add(new Triplet(0, 0, data[index]));
+        index++;
       }
     }
-    return compressedData.toString().getBytes();
+    return encodeTriplets(triplets);
   }
 
-  public byte[] decompress(byte[] compressedData) throws IOException {
-    StringBuffer decompressedData = new StringBuffer();
-    mSearchBuffer = new StringBuffer(mBufferSize);
-    ByteArrayInputStream bais = new ByteArrayInputStream(compressedData);
-    BufferedReader br = new BufferedReader(new InputStreamReader(bais));
+  public byte[] decompress(byte[] compressedData) {
+    List<Triplet> triplets = new ArrayList<>();
+    int index = 0;
+    int length = compressedData.length;
+    System.out.println(length);
 
-    int offset, length, b;
-    char nextChar;
-    String temp = "";
-    while ((b = br.read()) != -1) {
-      nextChar = (char) b;
-      if (b != '\0') {
-        mSearchBuffer.append(nextChar);
-        decompressedData.append(nextChar);
-        trimSearchBuffer();
+    while (index < length) {
+      Triplet t = readTriplet(compressedData, index);
+      index += 3;
+
+      triplets.add(t);
+    }
+
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    byte[] bslideWindow = new byte[slideWindow];
+    int windowIndex = 0;
+
+    for (Triplet t : triplets) {
+      if (t.offset == 0 && t.length == 0) {
+        baos.write(t.nextSymbol);
+        bslideWindow[windowIndex] = t.nextSymbol;
+        windowIndex = (windowIndex + 1) % bslideWindow.length;
       } else {
-        String[] off_len = br.readLine().strip().split("\0");
-        offset = Integer.parseInt(off_len[0]);
-        length = Integer.parseInt(off_len[1]);
-        if (offset == 0 && length == 0) {
-          decompressedData.append(" ");
-        } else if (offset > 0) {
-          if (offset + length > mSearchBuffer.length()) {
-            length = mSearchBuffer.length() - offset;
-          }
-          temp = mSearchBuffer.substring(offset, offset + length);
-          decompressedData.append(temp);
-        } else {
-          temp = "";
-          for (int i = 0; i < length; i++) {
-            int c = br.read();
-            temp += (char) c;
-            decompressedData.append((char) c);
-          }
+        int start = windowIndex - t.offset;
+        if (start < 0) {
+          start += bslideWindow.length;
         }
-        mSearchBuffer.append(temp);
-        trimSearchBuffer();
+
+        for (int i = 0; i < t.length; i++) {
+          byte b = bslideWindow[start];
+          baos.write(b);
+          bslideWindow[windowIndex] = b;
+          windowIndex = (windowIndex + 1) % bslideWindow.length;
+          start = (start + 1) % bslideWindow.length;
+        }
+
+        baos.write(t.nextSymbol);
+        bslideWindow[windowIndex] = t.nextSymbol;
+        windowIndex = (windowIndex + 1) % bslideWindow.length;
       }
     }
-    return decompressedData.toString().getBytes();
+
+    return baos.toByteArray();
   }
 
+  private byte[] encodeTriplets(List<Triplet> triplets) {
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    for (Triplet t : triplets) {
+      if (t.offset == 0 && t.length == 0) {
+        baos.write(0);
+        baos.write(0);
+        baos.write(t.nextSymbol);
+      } else {
+        int offsetCode = t.offset << 4;
+        int lengthCode = t.length;
+        if (t.offset < t.length) {
+          lengthCode--;
+        }
+        baos.write(offsetCode >> 8);
+        baos.write(offsetCode & 0xFF);
+        baos.write(lengthCode >> 4);
+        baos.write((lengthCode << 4) | ((int) t.nextSymbol & 0x0F));
+      }
+    }
+    return baos.toByteArray();
+  }
+
+  private Triplet readTriplet(byte[] data, int index) {
+    int offset = ((data[index] & 0xFF) << 4) | ((data[index + 1] & 0xFF) >> 4);
+    int length = ((data[index + 1] & 0x0F) << 8) | (data[index + 2] & 0xFF);
+    byte nextSymbol = (byte) ((offset < length) ? (data[index + 3] & 0xFF) : data[index + 2]);
+    System.out.printf("%d %d %d \n", offset, length, nextSymbol);
+
+    return new Triplet(offset, length, nextSymbol);
+  }
+
+  private class Triplet {
+    public int offset;
+    public int length;
+    public byte nextSymbol;
+
+    public Triplet(int offset, int length, byte nextSymbol) {
+      this.offset = offset;
+      this.length = length;
+      this.nextSymbol = nextSymbol;
+    }
+  }
+}
+
+class HuffmanCoding {
+  private Map<Byte, Integer> frequencyTable;
+  private Map<Byte, String> codeTable;
+
+  public HuffmanCoding() {
+    frequencyTable = new HashMap<>();
+    codeTable = new HashMap<>();
+  }
+
+  public void buildFrequencyTable(byte[] data) {
+    frequencyTable.clear();
+    for (byte b : data) {
+      frequencyTable.put(b, frequencyTable.getOrDefault(b, 0) + 1);
+    }
+  }
+
+  public void buildCodeTable() {
+    PriorityQueue<HuffmanNode> pq = new PriorityQueue<>();
+
+    for (byte b : frequencyTable.keySet()) {
+      int frequency = frequencyTable.get(b);
+      HuffmanNode node = new HuffmanNode(frequency, b);
+      pq.add(node);
+    }
+
+    while (pq.size() > 1) {
+      HuffmanNode node1 = pq.poll();
+      HuffmanNode node2 = pq.poll();
+      HuffmanNode mergedNode = new HuffmanNode(node1, node2);
+      pq.add(mergedNode);
+    }
+
+    HuffmanNode root = pq.poll();
+    generateCodeTable(root, "");
+  }
+
+  private void generateCodeTable(HuffmanNode node, String code) {
+    if (node.isLeaf()) {
+      codeTable.put(node.getByte(), code);
+      return;
+    }
+    generateCodeTable(node.getLeft(), code + "0");
+    generateCodeTable(node.getRight(), code + "1");
+  }
+
+  public byte[] encode(byte[] data) {
+    StringBuilder encodedData = new StringBuilder();
+    for (byte b : data) {
+      encodedData.append(codeTable.get(b));
+    }
+
+    int len = (encodedData.length() + 7) / 8;
+    byte[] result = new byte[len];
+
+    for (int i = 0; i < len; i++) {
+      int start = i * 8;
+      int end = Math.min(start + 8, encodedData.length());
+      String byteStr = encodedData.substring(start, end);
+      result[i] = (byte) Integer.parseInt(byteStr, 2);
+    }
+
+    return result;
+  }
+
+  public byte[] decode(byte[] encodedData) {
+    StringBuilder binaryStr = new StringBuilder();
+    PriorityQueue<HuffmanNode> pq = new PriorityQueue<>();
+
+    for (byte b : encodedData) {
+      String byteStr = Integer.toBinaryString((b & 0xFF) + 0x100).substring(1);
+      binaryStr.append(byteStr);
+    }
+
+    HuffmanNode node = pq.peek();
+    StringBuilder decodedData = new StringBuilder();
+    for (int i = 0; i < binaryStr.length(); i++) {
+      if (node.isLeaf()) {
+        decodedData.append(node.getByte());
+        node = pq.peek();
+      }
+      if (binaryStr.charAt(i) == '0') {
+        node = node.getLeft();
+      } else {
+        node = node.getRight();
+      }
+    }
+    decodedData.append(node.getByte());
+
+    byte[] result = new byte[decodedData.length()];
+    for (int i = 0; i < decodedData.length(); i++) {
+      result[i] = (byte) decodedData.charAt(i);
+    }
+
+    return result;
+  }
+}
+
+class HuffmanNode implements Comparable<HuffmanNode> {
+  private int frequency;
+  private byte b;
+  private HuffmanNode left;
+  private HuffmanNode right;
+
+  public HuffmanNode(int frequency, byte b) {
+    this.frequency = frequency;
+    this.b = b;
+  }
+
+  public HuffmanNode(HuffmanNode left, HuffmanNode right) {
+    this.frequency = left.frequency + right.frequency;
+    this.left = left;
+    this.right = right;
+  }
+
+  public boolean isLeaf() {
+    return left == null && right == null;
+  }
+
+  public int compareTo(HuffmanNode other) {
+    return this.frequency - other.frequency;
+  }
+
+  public byte getByte() {
+    return b;
+  }
+
+  public HuffmanNode getLeft() {
+    return left;
+  }
+
+  public HuffmanNode getRight() {
+    return right;
+  }
 }
