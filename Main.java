@@ -1,3 +1,10 @@
+// 221RDB020 Jānis Žogots 12.grupa
+// 221RDB228 Lauris Senkāns 4.grupa
+// 221RDB063 Renārs Dambis 13.grupa
+// 221RDB334 Ronalds Jierkis 17.grupa
+// 221RDB136 Dainis Kudrjavcevs 1.grupa
+// 221RDB353 Pāvels Kudrjavcevs 2.grupa
+
 import java.io.*;
 import java.util.*;
 
@@ -161,203 +168,124 @@ class DeflateAlgorithm {
   }
 
   public byte[] compress(byte[] data) {
-    byte[] newData = Arrays.copyOf(data, data.length + 1);
-    newData[newData.length - 1] = ' ';
-    byte[] compressedData = lz77.compress(newData);
+    byte[] compressedData = lz77.compress(data);
     return compressedData;
   }
 
   public byte[] decompress(byte[] compressedData) {
-    byte[] decompressedData = lz77.decompress(compressedData);
+    byte[] decompressedData = null;
+    try {
+      decompressedData = lz77.decompress(compressedData);
+    } catch (IOException e) {
+      System.out.println(e);
+    }
     return decompressedData;
   }
 }
 
 class LZ77 {
-  private int slideWindow;
-  private int searchBuffer;
-  private int outputBuffer;
+  public static final int DEFAULT_BUFF_SIZE = 1024;
+  protected int mBufferSize;
+  protected StringBuffer mSearchBuffer;
 
   public LZ77() {
-    this.slideWindow = 32768;
-    this.searchBuffer = 32768;
-    this.outputBuffer = 32767;
+    this(DEFAULT_BUFF_SIZE);
+  }
+
+  public LZ77(int buffSize) {
+    mBufferSize = buffSize;
+    mSearchBuffer = new StringBuffer(mBufferSize);
+  }
+
+  private void trimSearchBuffer() {
+    if (mSearchBuffer.length() > mBufferSize) {
+      mSearchBuffer = mSearchBuffer.delete(0, mSearchBuffer.length() - mBufferSize);
+    }
   }
 
   public byte[] compress(byte[] data) {
-    List<Triplet> triplets = new ArrayList<>();
-    int index = 0;
-    int length = data.length;
-
-    while (index < length) {
-      int matchIndex = -1;
-      int matchLength = -1;
-
-      for (int j = Math.max(0, index - searchBuffer); j < index; j++) {
-        int len = 0;
-        while (index + len < length && data[j + len] == data[index + len] && len < outputBuffer) {
-          len++;
-        }
-        if (len > matchLength) {
-          matchIndex = j;
-          matchLength = len;
-        }
-      }
-      if (matchLength > 0) {
-        triplets.add(new Triplet(index - matchIndex, matchLength, data[index + matchLength]));
-        index += matchLength;
+    StringBuffer compressedData = new StringBuffer();
+    int nextChar;
+    String currentMatch = "";
+    int matchIndex = 0, tempIndex = 0;
+    for (int i = 0; i < data.length; i++) {
+      nextChar = data[i] & 0xFF;
+      tempIndex = mSearchBuffer.indexOf(currentMatch + (char) nextChar);
+      if (tempIndex != -1) {
+        currentMatch += (char) nextChar;
+        matchIndex = tempIndex;
       } else {
-        triplets.add(new Triplet(0, 0, data[index]));
-        index++;
-      }
-    }
-    return encodeTriplets(triplets);
-  }
-
-  public byte[] decompress(byte[] compressedData) {
-    List<Triplet> triplets = new ArrayList<>();
-    int index = 0;
-    int length = compressedData.length;
-
-    while (index < length) {
-      if (index + 2 >= length) {
-        break;
-      }
-
-      Triplet t = readTriplet(compressedData, index, length);
-      index += 3;
-
-      if (t.offset == 0 && t.length == 0) {
-        if (t.nextSymbol == ' ') {
-          break;
-        }
-      }
-
-      triplets.add(t);
-    }
-
-    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-    byte[] bslideWindow = new byte[slideWindow];
-    int windowIndex = 0;
-    boolean fullyDecompressed = false;
-
-    for (Triplet t : triplets) {
-      if (t.offset == 0 && t.length == 0) {
-        baos.write(t.nextSymbol);
-        bslideWindow[windowIndex] = t.nextSymbol;
-        windowIndex = (windowIndex + 1) % bslideWindow.length;
-      } else {
-        int start = windowIndex - t.offset;
-        if (start < 0) {
-          start += bslideWindow.length;
-        }
-
-        for (int i = 0; i < t.length; i++) {
-          byte b = bslideWindow[start];
-          baos.write(b);
-          bslideWindow[windowIndex] = b;
-          windowIndex = (windowIndex + 1) % bslideWindow.length;
-          start = (start + 1) % bslideWindow.length;
-        }
-
-        byte sb = 0;
-        if (t.offset < t.length) {
-          if (start < 0) {
-            start += bslideWindow.length;
-          }
-          sb = bslideWindow[start];
+        String codedString = "\0" + matchIndex + "\0" + currentMatch.length() + "\0" + (char) nextChar;
+        String concat = currentMatch + (char) nextChar;
+        if (codedString.length() <= concat.length()) {
+          compressedData.append(codedString);
+          mSearchBuffer.append(concat);
+          currentMatch = "";
+          matchIndex = 0;
         } else {
-          if (index < length) {
-            sb = compressedData[index++];
-          } else {
-            fullyDecompressed = true;
+          currentMatch = concat;
+          matchIndex = -1;
+          while (currentMatch.length() > 1 && matchIndex == -1) {
+            compressedData.append(currentMatch.charAt(0));
+            mSearchBuffer.append(currentMatch.charAt(0));
+            currentMatch = currentMatch.substring(1, currentMatch.length());
+            matchIndex = mSearchBuffer.indexOf(currentMatch);
           }
         }
-
-        baos.write(sb);
-        bslideWindow[windowIndex] = sb;
-        windowIndex = (windowIndex + 1) % bslideWindow.length;
-      }
-      if (fullyDecompressed) {
-        break;
+        trimSearchBuffer();
       }
     }
-
-    return baos.toByteArray();
-  }
-
-  private byte[] encodeTriplets(List<Triplet> triplets) {
-    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-    for (Triplet t : triplets) {
-      if (t.offset == 0 && t.length == 0) {
-        baos.write(0);
-        baos.write(t.nextSymbol);
+    if (matchIndex != -1) {
+      String codedString = "\0" + matchIndex + "\0" + currentMatch.length() + "\0";
+      if (codedString.length() <= currentMatch.length()) {
+        compressedData.append(codedString);
       } else {
-        int offsetLength = 0;
-        int lenLength = 0;
-
-        int offset = t.offset;
-        while (offset > 0) {
-          offsetLength++;
-          offset >>>= 1;
-        }
-
-        int len = t.length;
-        while (len > 0) {
-          lenLength++;
-          len >>>= 1;
-        }
-
-        int code = (offsetLength << 4) | lenLength;
-        baos.write(code);
-
-        offset = t.offset;
-        for (int i = offsetLength - 1; i >= 0; i--) {
-          baos.write((offset >> (i * 8)) & 0xff);
-        }
-
-        len = t.length;
-        for (int i = lenLength - 1; i >= 0; i--) {
-          baos.write((len >> (i * 8)) & 0xff);
-        }
-
-        baos.write(t.nextSymbol);
+        compressedData.append(currentMatch);
       }
     }
-    return baos.toByteArray();
+    return compressedData.toString().getBytes();
   }
 
-  private Triplet readTriplet(byte[] data, int index, int length) {
-    byte code = data[index];
-    if ((code & 0xf) == 0) {
-      return new Triplet(0, 0, data[index + 1]);
-    } else {
-      int offsetLength = (code >> 4) & 0xf;
-      int lenLength = code & 0xf;
-      int offset = 0;
-      for (int i = 0; i < offsetLength; i++) {
-        offset |= ((data[index + 1 + i] & 0xff) << ((offsetLength - i - 1) * 8));
+  public byte[] decompress(byte[] compressedData) throws IOException {
+    StringBuffer decompressedData = new StringBuffer();
+    mSearchBuffer = new StringBuffer(mBufferSize);
+    ByteArrayInputStream bais = new ByteArrayInputStream(compressedData);
+    BufferedReader br = new BufferedReader(new InputStreamReader(bais));
+
+    int offset, length, b;
+    char nextChar;
+    String temp = "";
+    while ((b = br.read()) != -1) {
+      nextChar = (char) b;
+      if (b != '\0') {
+        mSearchBuffer.append(nextChar);
+        decompressedData.append(nextChar);
+        trimSearchBuffer();
+      } else {
+        String[] off_len = br.readLine().strip().split("\0");
+        offset = Integer.parseInt(off_len[0]);
+        length = Integer.parseInt(off_len[1]);
+        if (offset == 0 && length == 0) {
+          decompressedData.append(" ");
+        } else if (offset > 0) {
+          if (offset + length > mSearchBuffer.length()) {
+            length = mSearchBuffer.length() - offset;
+          }
+          temp = mSearchBuffer.substring(offset, offset + length);
+          decompressedData.append(temp);
+        } else {
+          temp = "";
+          for (int i = 0; i < length; i++) {
+            int c = br.read();
+            temp += (char) c;
+            decompressedData.append((char) c);
+          }
+        }
+        mSearchBuffer.append(temp);
+        trimSearchBuffer();
       }
-
-      int len = 0;
-      for (int i = 0; i < lenLength; i++) {
-        len |= ((data[index + 1 + offsetLength + i] & 0xff) << ((lenLength - i - 1) * 8));
-      }
-
-      byte nextSymbol = data[index + 1 + offsetLength + lenLength];
-      return new Triplet(offset, len, nextSymbol);
     }
+    return decompressedData.toString().getBytes();
   }
 
-  private static class Triplet {
-    public final int offset;
-    public final int length;
-    public final byte nextSymbol;
-
-    public Triplet(int offset, int length, byte nextSymbol) {
-      this.offset = offset;
-      this.length = length;
-      this.nextSymbol = nextSymbol;
-    }
-  }
 }
